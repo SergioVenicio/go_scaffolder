@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17.2-alpine
+    restart: always
+    ports:
+      - 127.0.0.1:5432:5432
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./postgresql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    env_file:
+      - .env
+    command: >
+      postgres -c "shared_preload_libraries=pg_stat_statements"
+volumes:
+  pg_data:
+  prom_data:
