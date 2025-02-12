@@ -13,4 +13,3 @@ services:
       postgres -c "shared_preload_libraries=pg_stat_statements"
 volumes:
   pg_data:
-  prom_data:
