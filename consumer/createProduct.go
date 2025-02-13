@@ -63,10 +63,10 @@ func (c *CreateProductConsumer) Shutdown() {
 }
 
 func (c *CreateProductConsumer) OnMessage(ctx context.Context, msg *pubsub.Message) {
+	defer msg.Ack()
 	var product models.Product
 	if err := json.Unmarshal(msg.Data, &product); err != nil {
 		c.logger.WithError(err).Error("invalid message received")
-		msg.Nack()
 		return
 	}
 
@@ -74,5 +74,4 @@ func (c *CreateProductConsumer) OnMessage(ctx context.Context, msg *pubsub.Messa
 	if err := c.products.Insert(product); err != nil {
 		c.logger.WithError(err).Error(err.Error())
 	}
-	msg.Ack()
 }

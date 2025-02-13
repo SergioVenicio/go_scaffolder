@@ -66,8 +66,10 @@ func main() {
 	sigChan := make(chan os.Signal, 2)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	go productCreateConsumer.Consume()
-	go imageDownloadConsumer.Consume()
+	for range cfg.MaxWorkers {
+		go productCreateConsumer.Consume()
+		go imageDownloadConsumer.Consume()
+	}
 
 	go func() {
 		sig := <-sigChan

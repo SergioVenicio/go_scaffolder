@@ -17,7 +17,7 @@ type Product struct {
 	ID          uuid.UUID `gorm:"type:uuid" json:"id" validate:"uuid"`
 	Description string    `json:"description" validate:"required"`
 	Price       float64   `json:"price" validate:"required"`
-	Status      string    `json:"status"`
+	Status      string    `gorm:"default:inactive" json:"status"`
 	Stock       int       `json:"stock" validate:"min=0"`
 	Images      []Image   `gorm:"foreignKey:Product" json:"images" validate:"required"`
 }

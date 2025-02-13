@@ -20,12 +20,9 @@ func NewProductRepository(db database.Database, logger *logrus.Logger) Repositor
 
 func (r *ProductRepository) Insert(p models.Product) error {
 	r.logger.Infof("inserting new product %s", p.ID.String())
-	tx := r.db.GetDb().Create(&p)
-	if tx.Error != nil {
-		r.logger.WithError(tx.Error).Error("product insert error")
-		tx.Rollback()
-		return tx.Error
+	if err := r.db.GetDb().Create(&p).Error; err != nil {
+		r.logger.WithError(err).Error("product insert error")
+		return err
 	}
-	tx.Commit()
 	return nil
 }

@@ -82,10 +82,10 @@ func getFileType(contentType string) string {
 }
 
 func (c *ImageConsumer) OnMessage(ctx context.Context, msg *pubsub.Message) {
+	defer msg.Ack()
 	var product models.Product
 	if err := json.Unmarshal(msg.Data, &product); err != nil {
 		c.logger.WithError(err).Error("invalid message received")
-		msg.Nack()
 		return
 	}
 
@@ -113,5 +113,4 @@ func (c *ImageConsumer) OnMessage(ctx context.Context, msg *pubsub.Message) {
 		file.Close()
 		res.Body.Close()
 	}
-	msg.Ack()
 }
