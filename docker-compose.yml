@@ -11,6 +11,13 @@ services:
       - .env
     command: >
       postgres -c "shared_preload_libraries=pg_stat_statements"
+  pubsub:
+    image: google/cloud-sdk:emulators
+    command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085 --project=productstest
+    ports:
+      - "8085:8085"
+    volumes:
+      - pubsub_data:/emulator_data
 volumes:
   pg_data:
-  prom_data:
+  pubsub_data:

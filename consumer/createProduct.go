@@ -1,0 +1,78 @@
+package consumer
+
+import (
+	"context"
+	"time"
+
+	"cloud.google.com/go/pubsub"
+	"github.com/SergioVenicio/go_scaffolder/config"
+	"github.com/SergioVenicio/go_scaffolder/models"
+	"github.com/SergioVenicio/go_scaffolder/repositories"
+	"github.com/goccy/go-json"
+	"github.com/sirupsen/logrus"
+)
+
+type CreateProductConsumer struct {
+	cfg      *config.Config
+	logger   *logrus.Logger
+	products repositories.Repository[models.Product]
+	client   *pubsub.Client
+}
+
+func NewCreateProductConsumer(ctx context.Context, cfg *config.Config, logger *logrus.Logger, productRepository repositories.Repository[models.Product]) Consumer {
+	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*500)
+	defer cancel()
+	client, err := pubsub.NewClient(ctx, cfg.ProjectID)
+	if err != nil {
+		panic(err)
+	}
+	return &CreateProductConsumer{
+		cfg:      cfg,
+		logger:   logger,
+		client:   client,
+		products: productRepository,
+	}
+}
+
+func (c *CreateProductConsumer) Consume() error {
+	ctx := context.Background()
+	topic := c.client.Topic(c.cfg.ProductCreationTopic)
+	ok, err := topic.Exists(ctx)
+	if !ok || err != nil {
+		topic, err = c.client.CreateTopic(ctx, c.cfg.ProductCreationTopic)
+		if err != nil {
+			return err
+		}
+	}
+
+	sub_id := c.cfg.ProductCreationSubID
+	topicSub := c.client.Subscription(sub_id)
+	ok, err = topicSub.Exists(ctx)
+	if !ok || err != nil {
+		topicSub, err = c.client.CreateSubscription(ctx, sub_id, pubsub.SubscriptionConfig{Topic: topic})
+		if err != nil {
+			c.logger.WithError(err).Error("error on subscription create")
+			return err
+		}
+	}
+	return topicSub.Receive(ctx, c.OnMessage)
+}
+
+func (c *CreateProductConsumer) Shutdown() {
+	c.client.Close()
+}
+
+func (c *CreateProductConsumer) OnMessage(ctx context.Context, msg *pubsub.Message) {
+	var product models.Product
+	if err := json.Unmarshal(msg.Data, &product); err != nil {
+		c.logger.WithError(err).Error("invalid message received")
+		msg.Nack()
+		return
+	}
+
+	c.logger.WithField("product", product).Debug("product received")
+	if err := c.products.Insert(product); err != nil {
+		c.logger.WithError(err).Error(err.Error())
+	}
+	msg.Ack()
+}

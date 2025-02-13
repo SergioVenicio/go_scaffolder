@@ -3,7 +3,8 @@ package server
 import (
 	"fmt"
 
-	"github.com/Solana-Listener/payo/config"
+	"github.com/SergioVenicio/go_scaffolder/config"
+	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -28,7 +29,11 @@ func NewHttpServer(cfg *config.Config, logger *logrus.Logger) *HttpServer {
 	}))
 
 	return &HttpServer{
-		app:    fiber.New(),
+		app: fiber.New(fiber.Config{
+			Prefork:     true,
+			JSONEncoder: json.Marshal,
+			JSONDecoder: json.Unmarshal,
+		}),
 		cfg:    cfg,
 		logger: logger,
 	}
@@ -38,6 +43,8 @@ func (httpServer *HttpServer) AddHandler(method string, path string, handler fib
 	switch method {
 	case "GET":
 		httpServer.app.Get(path, handler)
+	case "POST":
+		httpServer.app.Post(path, handler)
 	}
 }
 func (httpServer *HttpServer) Start() {

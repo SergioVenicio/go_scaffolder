@@ -3,22 +3,22 @@ package main
 import (
 	"context"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 
-	"github.com/SergioVenicio/go_scaffolder/api/handlers"
 	"github.com/SergioVenicio/go_scaffolder/config"
+	"github.com/SergioVenicio/go_scaffolder/consumer"
 	"github.com/SergioVenicio/go_scaffolder/database"
 	"github.com/SergioVenicio/go_scaffolder/models"
-	"github.com/SergioVenicio/go_scaffolder/publisher"
 	"github.com/SergioVenicio/go_scaffolder/repositories"
-	"github.com/SergioVenicio/go_scaffolder/server"
 	"github.com/sirupsen/logrus"
 )
 
 var (
-	db              database.Database
-	cfg             *config.Config
-	logger          *logrus.Logger
-	pubsubPublisher publisher.Publisher
+	db     database.Database
+	cfg    *config.Config
+	logger *logrus.Logger
 )
 
 func setUpLogger() {
@@ -41,6 +41,8 @@ func setUpLogger() {
 	logger.SetOutput(os.Stdout)
 }
 
+var once sync.Once
+
 func setUpDatabase() {
 	db = database.NewPostgresql(cfg)
 	db.GetDb().AutoMigrate(&models.Product{})
@@ -49,22 +51,31 @@ func setUpDatabase() {
 
 func init() {
 	cfg = config.NewConfig()
-	setUpLogger()
-	setUpDatabase()
-
-	ctx := context.Background()
+	once.Do(func() {
+		setUpLogger()
+		setUpDatabase()
+	})
 	os.Setenv("PUBSUB_EMULATOR_HOST", "localhost:8085")
-	pubsubPublisher = publisher.NewPubsub(ctx, cfg.ProjectID)
 }
 
 func main() {
-	httpServer := server.NewHttpServer(cfg, logger)
+	ctx := context.Background()
+	products := repositories.NewProductRepository(db, logger)
+	productCreateConsumer := consumer.NewCreateProductConsumer(ctx, cfg, logger, products)
+	imageDownloadConsumer := consumer.NewImageConsumer(ctx, cfg, logger, products)
+	sigChan := make(chan os.Signal, 2)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	productRepository := repositories.NewProductRepository(db, logger)
-	productHandler := handlers.NewProductHandler(cfg, logger, productRepository, pubsubPublisher)
+	go productCreateConsumer.Consume()
+	go imageDownloadConsumer.Consume()
 
-	httpServer.AddHandler("POST", "/", productHandler.NewProduct)
-
-	logger.Info("stating web server")
-	httpServer.Start()
+	go func() {
+		sig := <-sigChan
+		switch sig {
+		default:
+			productCreateConsumer.Shutdown()
+			imageDownloadConsumer.Shutdown()
+		}
+	}()
+	<-sigChan
 }
