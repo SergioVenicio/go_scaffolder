@@ -32,7 +32,7 @@ func NewPostgresql(conf *config.Config) Database {
 				panic("failed to connect database")
 			}
 			sqlDB.SetMaxIdleConns(10)
-			sqlDB.SetMaxOpenConns(100)
+			sqlDB.SetMaxOpenConns(50)
 			sqlDB.SetConnMaxLifetime(time.Hour)
 			db = dbConn
 		}
